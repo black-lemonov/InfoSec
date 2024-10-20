@@ -36,6 +36,8 @@ public:
     size_t objects() const {
         return objectsNumber;
     }
+
+    bool IsSafe() const;
 };
 
 
@@ -73,19 +75,23 @@ void PrintMatrix(const std::vector<std::vector<T>> matrix) {
     }
 }
 
-
-bool CheckSystem(const ComputerSystem& system) {
-    for (size_t s = 1; s != system.subjects() + 1; ++s) {
-        for (size_t o = 1; o != system.objects() + 1; ++o) {
-            char access = system.GetAccess(s, o);
+// Критерий безопасности системы:
+// безопасны все достижимые состояния системы
+// (состояние безопасно если выполнено NRU и NWD)
+bool ComputerSystem::IsSafe() const {
+    for (size_t s = 1; s != subjects() + 1; ++s) {
+        for (size_t o = 1; o != objects() + 1; ++o) {
+            char access = GetAccess(s, o);
             if (access == 'r') {
-                if (system.GetSubjectLevel(s) < system.GetObjectLevel(o)) {
+                if (GetSubjectLevel(s) < GetObjectLevel(o)) {
                     return false;
                 }
             } else if (access == 'w') {
-                if (system.GetSubjectLevel(s) > system.GetObjectLevel(o)) {
+                if (GetSubjectLevel(s) > GetObjectLevel(o)) {
                     return false;
                 }
+            } else {
+                return false;
             }
         }
     }
@@ -108,7 +114,7 @@ int main() {
     std::cout << "Enter objects levels: ";
     EnterArray(m, LO);
     ComputerSystem cs(n, m, A, LS, LO);
-    if (CheckSystem(cs)) {
+    if (cs.IsSafe()) {
         std::cout << "Congrats! Your system is safe!" << '\n';
     } else {
         std::cout << "Warning! Your system is not safe!" << '\n';
