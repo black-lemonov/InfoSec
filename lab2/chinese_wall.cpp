@@ -96,6 +96,17 @@ public:
         return objects;
     }
 
+    // Число объектов без владельца
+    inline size_t GetFreeObjectsNumber() const {
+        return std::count_if(
+            securityLabels.begin(),
+            securityLabels.end(),
+            [](const auto& p){
+                return p.second == NONE;
+            }
+        );
+    }
+
     inline size_t GetSubjectsNumber() const {
         return subjects;
     }
@@ -143,20 +154,20 @@ const char ChineseWall::NONE = '_';
 
 class ChineseWallContext {
 private:
-    ChineseWall& wall;
+    ChineseWall wall;
     std::istream& in;
     std::ostream& out;
 
     void PrintSubjectReport(size_t s) const {
         std::string delimiter = "\n";
-        for (size_t i = 0, n = wall.GetObjects(s); i != n;) {
+        for (size_t i = 0, n = wall.GetObjects(s); n != 0; ++i) {
             if (wall.HasAccess(s, i)) {
                 out << "object: " << i;
                 if (char f = wall.GetFirm(i); f != ChineseWall::NONE) {
                     out << " firm: " << f;
                 }
-                ++i;
-                if (i != n) {
+                --n;
+                if (n != 0) {
                     out << delimiter;
                 }
             }
@@ -165,11 +176,11 @@ private:
 
     void PrintObjectReport(size_t o) {
         std::string delimiter = "\n";
-        for (size_t i = 0, n = wall.GetSubjects(o); i != n; ) {
+        for (size_t i = 0, n = wall.GetSubjects(o); n != 0; ++i) {
             if (wall.HasAccess(i, o)) {
                 out << "subject: " << i;
-                ++i;
-                if (i != n) {
+                --n;
+                if (n != 0) {
                     out << delimiter;
                 }
             }
@@ -178,123 +189,14 @@ private:
 
     void PrintFirmPortfolio(char f) const {
         std::string delimiter = "\n";
-        for (size_t i = 0, n = wall.GetFirmObjects(f); i != n; ) {
+        for (size_t i = 0, n = wall.GetFirmObjects(f); i != n; ++i) {
             if (wall.GetFirm(i) == f) {
                 out << "object: " << i;
-                ++i;
-                if (i != n) {
+                --n;
+                if (n != 0) {
                     out << delimiter;
                 }
             }
-        }
-    }
-
-    void PrintObjectsAvailable() const {
-        std::string delimiter = ", ";
-        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
-            if (wall.GetFirm(i) == ChineseWall::NONE) {
-                out << i << delimiter;
-            }
-        }
-    }
-    
-    void PrintAllFirms() const {
-        std::string noMsg = "no";
-        std::string delimiter = ", ";
-        std::set<char> letters;
-        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
-            if (wall.GetFirm(i) != ChineseWall::NONE) {
-                letters.insert(wall.GetFirm(i));
-            }
-        }
-        size_t size = letters.size();
-        if (size == 0) {
-            out << noMsg;
-            return;
-        }
-        auto it = letters.begin();
-        for (size_t i = 0; i != size; ) {
-            out << *it;
-            ++i;
-            ++it;
-            if (i != size) {
-                out << delimiter;
-            }
-        }
-    }
-
-    void PrintAllConflicts() const {
-        std::string noMsg = "no";
-        std::string delimiter = ", ";
-        std::set<char> letters;
-        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
-            if (wall.GetConflict(i) != ChineseWall::NONE) {
-                letters.insert(wall.GetConflict(i));
-            }
-        }
-        size_t conflicts = letters.size();
-        if (conflicts == 0) {
-            out << noMsg;
-            return;
-        }
-        auto it = letters.begin();
-        for (size_t i = 0; i != conflicts; ) {
-            out << *it;
-            ++i;
-            ++it;
-            if (i != conflicts) {
-                out << delimiter;
-            }
-        }
-    }
-
-    void PrintAllSubjects() const {
-        std::string delimiter = ", ";
-        for (size_t i = 0; i != wall.GetSubjectsNumber(); ) {
-            out << i;
-            ++i;
-            if (i != wall.GetSubjectsNumber()) {
-                out << delimiter;
-            }
-        }
-    }
-
-    void SetPortfolios() {
-        out << "Please, set firms portfolios" << '\n';
-        for (size_t i = 0; i != wall.GetFirmsNumber(); ++i) {
-            char f;
-            out << "Enter firm\'s letter (";
-            PrintAllFirms();
-            out << " exist(s)): ";
-            in >> f;
-            out << "Enter firms object(s) (";
-            PrintObjectsAvailable();
-            out << " available): ";
-            in >> std::ws;
-            std::string objects;
-            std::getline(in, objects);
-            std::istringstream iss(objects);
-            size_t o;
-            while (iss >> o) {
-                wall.AddObject(o, f);
-            }
-        }
-    }
-    void SetConflicts() {
-        out << "Please, set conflict classes" << '\n';
-        for (size_t i = 0; i != wall.GetFirmsNumber(); ++i) {
-            char f, c;
-            out << "Enter a firm\'s letter ";
-            out << '(';
-            PrintAllFirms();
-            out << " exist(s)): ";
-            in >> f;
-            out << "Set a conflict class ";
-            out << '(';
-            PrintAllConflicts();
-            out << " exist(s)): ";
-            in >> c;
-            wall.SetConflict(f, c);
         }
     }
 
@@ -319,11 +221,11 @@ private:
             wall.Start();
         } else if (command == "read") {
             in >> s >> o;
-            wall.Read(s, o);
+            out << (wall.Read(s, o)? "accepted" : "refused");
             out << '\n';
         } else if (command == "write") {
             in >> s >> o;
-            wall.Write(s, o);
+            out << (wall.Write(s, o)? "accepted" : "refused");
             out << '\n';
         } else if (command == "report") {
             in >> flag;
@@ -347,22 +249,19 @@ private:
     }
     
 public:
-    ChineseWallContext(ChineseWall& chineseWall, 
+    ChineseWallContext(ChineseWall chineseWall, 
                         std::istream& in_, 
-                        std::ostream& out_) : wall(chineseWall), in(in_), out(out_) {   
-        SetPortfolios();
-        SetConflicts();
-        out << "The system was successfully initialised!" << '\n';
+                        std::ostream& out_) : wall(chineseWall), in(in_), out(out_) {
         out << "Enter 'help' to get the list of all available commands." << '\n';
     }
 
-    ChineseWallContext(ChineseWall& chineseWall,
+    ChineseWallContext(ChineseWall chineseWall,
                        std::istream& in_) : ChineseWallContext(chineseWall, in_, std::cout) {}
 
-    ChineseWallContext(ChineseWall& chineseWall,
+    ChineseWallContext(ChineseWall chineseWall,
                        std::ostream& out_) : ChineseWallContext(chineseWall, std::cin, out_) {}
 
-    ChineseWallContext(ChineseWall& chineseWall) : ChineseWallContext(chineseWall, std::cin, std::cout) {}
+    ChineseWallContext(ChineseWall chineseWall) : ChineseWallContext(chineseWall, std::cin, std::cout) {}
 
     void Run(const std::string& cursor) {
         std::string command;
@@ -377,15 +276,152 @@ public:
     };
 };
 
-int main() {
-    size_t n, m, f;
-    std::cout << "Enter the number of subjects: ";
-    std::cin >> n;
-    std::cout << "Enter the number of objects: ";
-    std::cin >> m;
-    std::cout << "Enter the number of firms: ";
-    std::cin >> f;
-    ChineseWall cw(n, m, f);
-    ChineseWallContext context(cw);
+
+class WallBuilder {
+private:
+    std::istream& in;
+    std::ostream& out;
+    
+    void PrintObjectsAvailable(ChineseWall& wall) {
+        std::string delimiter = ", ";
+        for (size_t i = 0, n = wall.GetFreeObjectsNumber(); n != 0; ++i) {
+            if (wall.GetFirm(i) == ChineseWall::NONE) {
+                out << i;
+                --n;
+                if (n != 0) {
+                    out << delimiter;
+                }
+            }
+        }
+    }
+
+    void PrintAllFirms(ChineseWall& wall) {
+        std::string noMsg = "no";
+        std::string delimiter = ", ";
+        std::set<char> letters;
+        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
+            if (wall.GetFirm(i) != ChineseWall::NONE) {
+                letters.insert(wall.GetFirm(i));
+            }
+        }
+        if (letters.empty()) {
+            out << noMsg;
+            return;
+        }
+        for (auto it = letters.begin(); it != letters.end(); ) {
+            out << *it;
+            ++it;
+            if (it != letters.end()) {
+                out << delimiter;
+            }
+        }
+    }
+
+    void PrintAllConflicts(ChineseWall& wall) {
+        std::string noMsg = "no";
+        std::string delimiter = ", ";
+        std::set<char> letters;
+        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
+            if (wall.GetConflict(i) != ChineseWall::NONE) {
+                letters.insert(wall.GetConflict(i));
+            }
+        }
+        if (letters.empty()) {
+            out << noMsg;
+            return;
+        }
+        for (auto it = letters.begin(); it != letters.end(); ) {
+            out << *it;
+            ++it;
+            if (it != letters.end()) {
+                out << delimiter;
+            }
+        }
+    }
+
+    void PrintAllSubjects(ChineseWall& wall) {
+        std::string delimiter = ", ";
+        for (size_t i = 0, n = wall.GetSubjectsNumber(); i != n; ) {
+            out << i;
+            ++i;
+            if (i != n) {
+                out << delimiter;
+            }
+        }
+    }
+
+    void SetPortfolio(ChineseWall& wall, char f) {
+        out << "Enter firms object(s) (";
+        PrintObjectsAvailable(wall);
+        out << " available): ";
+        in >> std::ws;
+        std::string objects;
+        std::getline(in, objects);
+        std::istringstream iss(objects);
+        size_t o;
+        while (iss >> o) {
+            wall.AddObject(o, f);
+        }
+    }
+
+    void SetPortfolios(ChineseWall& wall) {
+        out << "Please, set firms portfolios" << '\n';
+        for (size_t i = 0; i != wall.GetFirmsNumber(); ++i) {
+            char f;
+            out << "Enter firm\'s letter (";
+            PrintAllFirms(wall);
+            out << " exist(s)): ";
+            in >> f;    
+            SetPortfolio(wall, f);
+        }
+    }
+
+    void SetConflict(ChineseWall& wall, char f) {
+        char c;
+        out << "Set a conflict class ";
+        out << '(';
+        PrintAllConflicts(wall);
+        out << " exist(s)): ";
+        in >> c;
+        wall.SetConflict(f, c);
+    }
+
+    void SetConflicts(ChineseWall& wall) {
+        out << "Please, set conflict classes" << '\n';
+        for (size_t i = 0; i != wall.GetFirmsNumber(); ++i) {
+            char f;
+            out << "Enter a firm\'s letter ";
+            out << '(';
+            PrintAllFirms(wall);
+            out << " exist(s)): ";
+            in >> f;
+            SetConflict(wall, f);
+        }
+    }
+
+public:
+    WallBuilder(std::istream& in_, std::ostream& out_) : in(in_), out(out_) {}
+
+    ChineseWall BuildWall() {
+        size_t n, m, f;
+        out << "Enter the number of subjects: ";
+        in >> n;
+        out << "Enter the number of objects: ";
+        in >> m;
+        out << "Enter the number of firms: ";
+        in >> f;
+        ChineseWall wall(n, m, f);
+        SetPortfolios(wall);
+        SetConflicts(wall);
+        out << "The system was successfully initialised!" << '\n';
+        return wall;
+    }; 
+};
+
+
+int main() {    
+    WallBuilder builder(std::cin, std::cout);
+    ChineseWall wall = builder.BuildWall();
+    ChineseWallContext context(wall);
     context.Run("<3");
 }
