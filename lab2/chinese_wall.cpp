@@ -1,11 +1,11 @@
 // Можно сделать консольным приложением bash
-
 #include <iostream>
 #include <vector>
 #include <algorithm>
 #include <tuple>
 #include <set>
 #include <functional>
+#include <sstream>
 
 class ChineseWall {
 private:
@@ -270,12 +270,12 @@ private:
             out << "Enter firms object(s) (";
             PrintObjectsAvailable();
             out << " available): ";
-            int o;
-            while (true) {
-                in >> o;
-                if (o == -1) {
-                    break;
-                }
+            in >> std::ws;
+            std::string objects;
+            std::getline(in, objects);
+            std::istringstream iss(objects);
+            size_t o;
+            while (iss >> o) {
                 wall.AddObject(o, f);
             }
         }
@@ -387,5 +387,5 @@ int main() {
     std::cin >> f;
     ChineseWall cw(n, m, f);
     ChineseWallContext context(cw);
-    context.Run("sit~$");
+    context.Run("<3");
 }
