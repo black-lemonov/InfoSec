@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <tuple>
 #include <set>
+#include <functional>
 
 class ChineseWall {
 private:
@@ -11,9 +12,42 @@ private:
     size_t firms;
     std::vector<std::vector<bool>> accessMatrix;
     std::vector<std::pair<char, char>> securityLabels;
-    bool isHistoryEmpty = true;
+
+    bool isHistoryEmpty(size_t s) {
+        return std::all_of(
+            accessMatrix[s].begin(),
+            accessMatrix[s].end(),
+            std::logical_not<bool>()
+        );
+    }
+
+    bool hasConflict(size_t s, size_t o) {
+        for (size_t i = 0; i != objects; ++i) {
+            if (i != o ) {
+                if (accessMatrix[s][i] 
+                    && securityLabels[i].first == securityLabels[o].first) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    bool sameFirm(size_t s, size_t o) {
+        for (size_t i = 0; i != objects; ++i) {
+            if (i != o) {
+                if (accessMatrix[s][i] 
+                    && securityLabels[i].second == securityLabels[o].second) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
 public:
+    static const char NONE;
+
     ChineseWall() = default;
 
     ChineseWall(size_t n, size_t m, size_t f) {
@@ -21,73 +55,28 @@ public:
         objects = m;
         firms = f;
         accessMatrix = std::vector<std::vector<bool>>(n, std::vector<bool>(m, false));
-        securityLabels = std::vector<std::pair<char, char>>(m, {'_', '_'});
+        securityLabels = std::vector<std::pair<char, char>>(m, {NONE, NONE});
     }
 
     void Start() {
-        if (!isHistoryEmpty) {
-            for (auto& row : accessMatrix) {
-                std::replace(row.begin(), row.end(), true, false);
-            }
-            isHistoryEmpty = true;
+        for (auto& row : accessMatrix) {
+            std::replace(row.begin(), row.end(), true, false);
         }
     }
 
     void Read(size_t s, size_t o) {
-        if (isHistoryEmpty || accessMatrix[s][o]) {
-            std::cout << "accepted" << '\n';
+        if (accessMatrix[s][o]) {
+            std::cout << "accepted";
+        } else if (isHistoryEmpty(s) || !hasConflict(s, o) || sameFirm(s, o)) {
+            std::cout << "accepted";
             accessMatrix[s][o] = true;
         } else {
-            std::cout << "refused" << '\n';
+            std::cout << "refused";
         }
     }
 
     void Write(size_t s, size_t o) {
-        if (isHistoryEmpty || accessMatrix[s][o]) {
-            std::cout << "accepted" << '\n';
-            accessMatrix[s][o] = true;
-        } else {
-            for (size_t i = 0; i != objects; ++i) {
-                if (accessMatrix[s][i] && i != o 
-                    && securityLabels[i].first == securityLabels[o].first
-                    && securityLabels[i].first != '_') {
-                    std::cout << "refused" << '\n';
-                    return;
-                }
-            }
-            accessMatrix[s][o] = true;
-            std::cout << "accepted" << '\n';
-        }
-    }
-
-    void ReportS(size_t s) {
-        for (size_t i = 0; i != objects; ++i) {
-            if (accessMatrix[s][i] || securityLabels[i].second != '_') {
-                std::cout << "object " << i;
-                std::cout << " firm " << securityLabels[i].second << '\n';
-            }
-        }
-        std::cout << '\n';
-    }
-
-    void ReportO(size_t o) {
-        std::cout << "subjects: ";
-        for (size_t i = 0; i != subjects; ++i) {
-            if (accessMatrix[i][o]) {
-                std::cout << i << ", ";
-            }
-        }
-        std::cout << '\n';
-    }
-
-    void Portfolio(char f) {
-        std::cout << "objects: ";
-        for (size_t i = 0; i != objects; ++i) {
-            if (securityLabels[i].second == f) {
-                std::cout << i << ", ";
-            }
-        }
-        std::cout << '\n';
+        Read(s, o);
     }
 
     void AddObject(size_t o, char f) {
@@ -102,70 +91,170 @@ public:
         }
     }
 
-    void PrintAvailableObjects() {
-        for (size_t i = 0; i != objects; ++i) {
-            if (securityLabels[i].second == '_') {
-                std::cout << i << ", ";
-            }
-        }
-    }
-
-    size_t GetFirms() {
+    size_t GetFirmsNumber() const {
         return firms;
     }
 
-    void PrintFirms() {
-        std::set<char> firmsChars;
-        for (auto [c, f] : securityLabels) {
-            if (f != '_') {
-                firmsChars.insert(f);
-            }
-        }
-        if (firmsChars.empty()) {
-            std::cout << "no ";
-            return;
-        }
-        for (auto f : firmsChars) {
-            std::cout << f << ", ";
-        }
+    size_t GetObjectsNumber() const {
+        return objects;
     }
 
-    void PrintClasses() {
-        std::set<char> conflicts;
-        for (auto [c, f] : securityLabels) {
-            if (c != '_') {
-                conflicts.insert(c);
-            }
-        }
-        if (conflicts.empty()) {
-            std::cout << "no classes ";
-            return;
-        }
-        for (auto c : conflicts) {
-            std::cout << c << ", ";
-        }
+    size_t GetSubjectsNumber() const {
+        return subjects;
+    }
+
+    char GetFirm(size_t o) const {
+        return securityLabels[o].second;
+    }
+
+    char GetConflict(size_t o) const {
+        return securityLabels[o].first;
+    }
+
+    bool GetAccess(size_t s, size_t o) const {
+        return accessMatrix[s][o];
     }
 };
+
+const char ChineseWall::NONE = '_';
 
 
 class ChineseWallContext {
 private:
-    ChineseWall wall;
+    ChineseWall& wall;
+    std::istream& in;
+    std::ostream& out;
+
+    void PrintSubjectReport(size_t s) const {
+        std::string delimiter = "\n";
+        for (size_t i = 0, n = wall.GetObjectsNumber(); i != n; ) {
+            if (wall.GetAccess(s, i)) {
+                out << "object: " << i;
+                if (char f = wall.GetFirm(i); f != ChineseWall::NONE) {
+                    out << " firm: " << f;
+                }
+                if (i + 1 != n) {
+                    out << delimiter;
+                }
+            }
+            ++i;
+        }
+    }
+
+    void PrintObjectReport(size_t o) {
+        std::string delimiter = ", ";
+        for (size_t i = 0, n = wall.GetSubjectsNumber(); i != n; ) {
+            if (wall.GetAccess(i, o)) {
+                out << i;
+                if (i + 1 != n) {
+                    out << delimiter;
+                }
+            }
+            ++i;
+        }
+    }
+
+    void PrintFirmPortfolio(char f) const {
+        std::string delimiter = ", ";
+        for (size_t i = 0, n = wall.GetObjectsNumber(); i != n; ) {
+            if (wall.GetFirm(i) == f) {
+                out << i;
+                if (i + 1 != n) {
+                    out << delimiter;
+                }
+            }
+            ++i;
+        }
+    }
+
+    void PrintObjectsAvailable() const {
+        std::string delimiter = ", ";
+        for (size_t i = 0; i != wall.GetObjectsNumber(); ) {
+            if (wall.GetFirm(i) == ChineseWall::NONE) {
+                out << i;
+                if (i + 1 != wall.GetObjectsNumber()) {
+                    out << delimiter;
+                }
+            }
+            ++i;
+        }
+    }
+    
+    void PrintAllFirms() const {
+        std::string noMsg = "no";
+        std::string delimiter = ", ";
+        std::set<char> letters;
+        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
+            if (wall.GetFirm(i) != ChineseWall::NONE) {
+                letters.insert(wall.GetFirm(i));
+            }
+        }
+        size_t size = letters.size();
+        if (size == 0) {
+            out << noMsg;
+            return;
+        }
+        auto it = letters.begin();
+        for (size_t i = 0; i != size; ) {
+            out << *it;
+            ++i;
+            ++it;
+            if (i != size) {
+                out << delimiter;
+            }
+        }
+    }
+
+    void PrintAllConflicts() const {
+        std::string noMsg = "no";
+        std::string delimiter = ", ";
+        std::set<char> letters;
+        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
+            if (wall.GetConflict(i) != ChineseWall::NONE) {
+                letters.insert(wall.GetConflict(i));
+            }
+        }
+        size_t conflicts = letters.size();
+        if (conflicts == 0) {
+            out << noMsg;
+            return;
+        }
+        auto it = letters.begin();
+        for (size_t i = 0; i != conflicts; ) {
+            out << *it;
+            ++i;
+            ++it;
+            if (i != conflicts) {
+                out << delimiter;
+            }
+        }
+    }
+
+    void PrintAllSubjects() const {
+        std::string delimiter = ", ";
+        for (size_t i = 0; i != wall.GetSubjectsNumber(); ) {
+            out << i;
+            ++i;
+            if (i != wall.GetSubjectsNumber()) {
+                out << delimiter;
+            }
+        }
+    }
 
     void SetPortfolios() {
-        std::cout << "Please, set firms portfolios" << '\n';
-        for (size_t i = 0; i != wall.GetFirms(); ++i) {
+        out << "Please, set firms portfolios" << '\n';
+        for (size_t i = 0; i != wall.GetFirmsNumber(); ++i) {
             char f;
-            std::cout << "Enter firm\'s letter (";
-            wall.PrintFirms();
-            std::cout << "firm(s) already exist): ";
-            std::cin >> f;
-            std::cout << "Enter firms object(s) (";
-            wall.PrintAvailableObjects();
-            std::cout << "are available): ";
+            out << "Enter firm\'s letter (";
+            PrintAllFirms();
+            out << " firm(s) already exist): ";
+            in >> f;
+            out << "Enter firms object(s) (";
+            PrintObjectsAvailable();
+            out << " are available): ";
             int o;
             while (true) {
-                std::cin >> o;
+                in >> o;
                 if (o == -1) {
                     break;
                 }
@@ -173,65 +262,98 @@ private:
             }
         }
     }
-
     void SetConflicts() {
-        std::cout << "Please, set conflict classes" << '\n';
-        for (size_t i = 0; i != wall.GetFirms(); ++i) {
+        out << "Please, set conflict classes" << '\n';
+        for (size_t i = 0; i != wall.GetFirmsNumber(); ++i) {
             char f, c;
-            std::cout << "Enter a firm\'s letter ";
-            std::cout << '(';
-            wall.PrintFirms();
-            std::cout << "already exist): ";
-            std::cin >> f;
-            std::cout << "Set a conflict class ";
-            std::cout << '(';
-            wall.PrintClasses();
-            std::cout << "already exist): ";
-            std::cin >> c;
+            out << "Enter a firm\'s letter ";
+            out << '(';
+            PrintAllFirms();
+            out << " already exist): ";
+            in >> f;
+            out << "Set a conflict class ";
+            out << '(';
+            PrintAllConflicts();
+            out << " already exist): ";
+            in >> c;
             wall.SetConflict(f, c);
         }
-    };
-    
-public:
-    void PrintSummary() {
-        std::cout << "Commands available:" << '\n';
-        std::cout << "start            - erase all subjects\' histories" << '\n';
-        std::cout << "read s o         - read object o by subject s" << '\n';
-        std::cout << "report subject s - prints objects available for s" << '\n';
-        std::cout << "report object o  - prints subjects having access to o" << '\n';
-        std::cout << "briefcase f      - prints objects possessed by f" << '\n'; 
     }
 
-    ChineseWallContext(ChineseWall& chineseWall) {
-        wall = chineseWall;
-        SetPortfolios();
-        SetConflicts();
-        std::cout << "The system was successfully initialised!" << '\n';
-        PrintSummary();
+    void Help() const {
+        out << "Subjects in the system: ";
+        PrintAllSubjects();
+        out << '\n';
+        out << "Commands available:" << '\n';
+        out << "start            - erase all subjects\' histories" << '\n';
+        out << "read s o         - read object o by subject s" << '\n';
+        out << "reportsub s      - prints objects available for s" << '\n';
+        out << "reportobj o      - prints subjects having access to o" << '\n';
+        out << "briefcase f      - prints objects possessed by f" << '\n';
+        out << "exit             - exit the program" << '\n'; 
     }
 
     void ReadCommand(const std::string& command) {
         size_t s, o;
         char f;
-        if (command == "start") {
+        if (command == "help") {
+            Help();
+        } else if (command == "start") {
             wall.Start();
         } else if (command == "read") {
-            std::cin >> s >> o;
+            in >> s >> o;
             wall.Read(s, o);
+            out << '\n';
         } else if (command == "write") {
-            std::cin >> s >> o;
+            in >> s >> o;
             wall.Write(s, o);
-        } else if (command == "report subject") {
-            std::cin >> s;
-            wall.ReportS(s);
-        } else if (command == "report object") {
-            std::cin >> o;
-            wall.ReportO(o);
+            out << '\n';
+        } else if (command == "reportsub") {
+            in >> s;
+            PrintSubjectReport(s);
+            out << '\n';
+        } else if (command == "reportobj") {
+            in >> o;
+            PrintObjectReport(o);
+            out << '\n';
         } else if (command == "briefcase") {
-            std::cin >> f;
-            wall.Portfolio(f);
+            in >> f;
+            PrintFirmPortfolio(f);
+            out << '\n';
+        } else {
+            out << '\n';
         }
     }
+    
+public:
+    ChineseWallContext(ChineseWall& chineseWall, 
+                        std::istream& in_, 
+                        std::ostream& out_) : wall(chineseWall), in(in_), out(out_) {   
+        SetPortfolios();
+        SetConflicts();
+        out << "The system was successfully initialised!" << '\n';
+        out << "Enter 'help' to get the list of all available commands." << '\n';
+    }
+
+    ChineseWallContext(ChineseWall& chineseWall,
+                       std::istream& in_) : ChineseWallContext(chineseWall, in_, std::cout) {}
+
+    ChineseWallContext(ChineseWall& chineseWall,
+                       std::ostream& out_) : ChineseWallContext(chineseWall, std::cin, out_) {}
+
+    ChineseWallContext(ChineseWall& chineseWall) : ChineseWallContext(chineseWall, std::cin, std::cout) {}
+
+    void Run(const std::string& cursor) {
+        std::string command;
+        while (true) {
+            out << cursor << ' ';
+            in >> command;
+            if (command == "exit") {
+                break;
+            }
+            ReadCommand(command);
+        }  
+    };
 };
 
 int main() {
@@ -244,14 +366,5 @@ int main() {
     std::cin >> f;
     ChineseWall cw(n, m, f);
     ChineseWallContext context(cw);
-    std::cout << '>';
-    std::string command;
-    while (true) {
-        std::getline(std::cin, command);
-        if (command.empty()) {
-            break;
-        }
-        context.ReadCommand(command);
-        std::cout << '>';
-    }
+    context.Run("sit~$");
 }
