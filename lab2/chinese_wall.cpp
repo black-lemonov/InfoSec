@@ -1,3 +1,5 @@
+// Можно сделать консольным приложением bash
+
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -13,7 +15,7 @@ private:
     std::vector<std::vector<bool>> accessMatrix;
     std::vector<std::pair<char, char>> securityLabels;
 
-    bool isHistoryEmpty(size_t s) {
+    bool IsHistoryEmpty(size_t s) {
         return std::all_of(
             accessMatrix[s].begin(),
             accessMatrix[s].end(),
@@ -21,11 +23,10 @@ private:
         );
     }
 
-    bool hasConflict(size_t s, size_t o) {
+    bool HasConflict(size_t s, size_t o) {
         for (size_t i = 0; i != objects; ++i) {
-            if (i != o ) {
-                if (accessMatrix[s][i] 
-                    && securityLabels[i].first == securityLabels[o].first) {
+            if (i != o) {
+                if (HasAccess(s, i) && (GetConflict(i) == GetConflict(o))) {
                     return true;
                 }
             }
@@ -33,11 +34,10 @@ private:
         return false;
     }
 
-    bool sameFirm(size_t s, size_t o) {
+    bool SameFirm(size_t s, size_t o) {
         for (size_t i = 0; i != objects; ++i) {
             if (i != o) {
-                if (accessMatrix[s][i] 
-                    && securityLabels[i].second == securityLabels[o].second) {
+                if (HasAccess(s, i) && (GetFirm(i) == GetFirm(o))) {
                     return true;
                 }
             }
@@ -50,10 +50,7 @@ public:
 
     ChineseWall() = default;
 
-    ChineseWall(size_t n, size_t m, size_t f) {
-        subjects = n;
-        objects = m;
-        firms = f;
+    ChineseWall(size_t n, size_t m, size_t f) : subjects(n), objects(m), firms(f) {
         accessMatrix = std::vector<std::vector<bool>>(n, std::vector<bool>(m, false));
         securityLabels = std::vector<std::pair<char, char>>(m, {NONE, NONE});
     }
@@ -64,19 +61,19 @@ public:
         }
     }
 
-    void Read(size_t s, size_t o) {
+    bool Read(size_t s, size_t o) {
         if (accessMatrix[s][o]) {
-            std::cout << "accepted";
-        } else if (isHistoryEmpty(s) || !hasConflict(s, o) || sameFirm(s, o)) {
-            std::cout << "accepted";
-            accessMatrix[s][o] = true;
-        } else {
-            std::cout << "refused";
+            return true;
         }
+        if (IsHistoryEmpty(s) || !HasConflict(s, o) || SameFirm(s, o)) {
+            accessMatrix[s][o] = true;
+            return true;
+        } 
+        return false;
     }
 
-    void Write(size_t s, size_t o) {
-        Read(s, o);
+    bool Write(size_t s, size_t o) {
+        return Read(s, o);
     }
 
     void AddObject(size_t o, char f) {
@@ -91,28 +88,53 @@ public:
         }
     }
 
-    size_t GetFirmsNumber() const {
+    inline size_t GetFirmsNumber() const {
         return firms;
     }
 
-    size_t GetObjectsNumber() const {
+    inline size_t GetObjectsNumber() const {
         return objects;
     }
 
-    size_t GetSubjectsNumber() const {
+    inline size_t GetSubjectsNumber() const {
         return subjects;
     }
 
-    char GetFirm(size_t o) const {
+    inline char GetFirm(size_t o) const {
         return securityLabels[o].second;
     }
 
-    char GetConflict(size_t o) const {
+    inline char GetConflict(size_t o) const {
         return securityLabels[o].first;
     }
 
-    bool GetAccess(size_t s, size_t o) const {
+    inline bool HasAccess(size_t s, size_t o) const {
         return accessMatrix[s][o];
+    }
+
+    // Число объектов к которым имел доступ субъект s
+    size_t GetObjects(size_t s) const {
+        return std::count(accessMatrix[s].begin(), accessMatrix[s].end(), true);
+    }
+
+    // Число субъектов обращавшихся к объекту o
+    size_t GetSubjects(size_t o) const {
+        size_t count = 0;
+        for (size_t i = 0; i != subjects; ++i) {
+            if (accessMatrix[i][o]) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    // Число объектов в портфеле компании
+    size_t GetFirmObjects(char f) const {
+        return std::count_if(securityLabels.begin(),
+                          securityLabels.end(),
+                          [&](const auto& p){
+                            return p.second == f;
+                          });
     }
 };
 
@@ -127,56 +149,52 @@ private:
 
     void PrintSubjectReport(size_t s) const {
         std::string delimiter = "\n";
-        for (size_t i = 0, n = wall.GetObjectsNumber(); i != n; ) {
-            if (wall.GetAccess(s, i)) {
+        for (size_t i = 0, n = wall.GetObjects(s); i != n;) {
+            if (wall.HasAccess(s, i)) {
                 out << "object: " << i;
                 if (char f = wall.GetFirm(i); f != ChineseWall::NONE) {
                     out << " firm: " << f;
                 }
-                if (i + 1 != n) {
+                ++i;
+                if (i != n) {
                     out << delimiter;
                 }
             }
-            ++i;
         }
     }
 
     void PrintObjectReport(size_t o) {
-        std::string delimiter = ", ";
-        for (size_t i = 0, n = wall.GetSubjectsNumber(); i != n; ) {
-            if (wall.GetAccess(i, o)) {
-                out << i;
-                if (i + 1 != n) {
+        std::string delimiter = "\n";
+        for (size_t i = 0, n = wall.GetSubjects(o); i != n; ) {
+            if (wall.HasAccess(i, o)) {
+                out << "subject: " << i;
+                ++i;
+                if (i != n) {
                     out << delimiter;
                 }
             }
-            ++i;
         }
     }
 
     void PrintFirmPortfolio(char f) const {
-        std::string delimiter = ", ";
-        for (size_t i = 0, n = wall.GetObjectsNumber(); i != n; ) {
+        std::string delimiter = "\n";
+        for (size_t i = 0, n = wall.GetFirmObjects(f); i != n; ) {
             if (wall.GetFirm(i) == f) {
-                out << i;
-                if (i + 1 != n) {
+                out << "object: " << i;
+                ++i;
+                if (i != n) {
                     out << delimiter;
                 }
             }
-            ++i;
         }
     }
 
     void PrintObjectsAvailable() const {
         std::string delimiter = ", ";
-        for (size_t i = 0; i != wall.GetObjectsNumber(); ) {
+        for (size_t i = 0; i != wall.GetObjectsNumber(); ++i) {
             if (wall.GetFirm(i) == ChineseWall::NONE) {
-                out << i;
-                if (i + 1 != wall.GetObjectsNumber()) {
-                    out << delimiter;
-                }
+                out << i << delimiter;
             }
-            ++i;
         }
     }
     
@@ -247,11 +265,11 @@ private:
             char f;
             out << "Enter firm\'s letter (";
             PrintAllFirms();
-            out << " firm(s) already exist): ";
+            out << " exist(s)): ";
             in >> f;
             out << "Enter firms object(s) (";
             PrintObjectsAvailable();
-            out << " are available): ";
+            out << " available): ";
             int o;
             while (true) {
                 in >> o;
@@ -269,33 +287,32 @@ private:
             out << "Enter a firm\'s letter ";
             out << '(';
             PrintAllFirms();
-            out << " already exist): ";
+            out << " exist(s)): ";
             in >> f;
             out << "Set a conflict class ";
             out << '(';
             PrintAllConflicts();
-            out << " already exist): ";
+            out << " exist(s)): ";
             in >> c;
             wall.SetConflict(f, c);
         }
     }
 
     void Help() const {
-        out << "Subjects in the system: ";
-        PrintAllSubjects();
-        out << '\n';
         out << "Commands available:" << '\n';
-        out << "start            - erase all subjects\' histories" << '\n';
-        out << "read s o         - read object o by subject s" << '\n';
-        out << "reportsub s      - prints objects available for s" << '\n';
-        out << "reportobj o      - prints subjects having access to o" << '\n';
-        out << "briefcase f      - prints objects possessed by f" << '\n';
-        out << "exit             - exit the program" << '\n'; 
+        out << "start       - erase all subjects\' histories" << '\n';
+        out << "write s o   - write into object o by subject s" << '\n';
+        out << "read s o    - read object o by subject s" << '\n';
+        out << "report -s s - prints objects available for s" << '\n';
+        out << "report -o o - prints subjects having access to o" << '\n';
+        out << "briefcase f - prints objects possessed by f" << '\n';
+        out << "exit        - exit the program" << '\n'; 
     }
 
     void ReadCommand(const std::string& command) {
         size_t s, o;
         char f;
+        std::string flag;
         if (command == "help") {
             Help();
         } else if (command == "start") {
@@ -308,13 +325,17 @@ private:
             in >> s >> o;
             wall.Write(s, o);
             out << '\n';
-        } else if (command == "reportsub") {
-            in >> s;
-            PrintSubjectReport(s);
-            out << '\n';
-        } else if (command == "reportobj") {
-            in >> o;
-            PrintObjectReport(o);
+        } else if (command == "report") {
+            in >> flag;
+            if (flag == "-s") {
+                in >> s;
+                PrintSubjectReport(s);
+            } else if (flag == "-o") {
+                in >> o;
+                PrintObjectReport(o);
+            } else {
+                out << "flags: -s for subject, -o for object";
+            }
             out << '\n';
         } else if (command == "briefcase") {
             in >> f;
