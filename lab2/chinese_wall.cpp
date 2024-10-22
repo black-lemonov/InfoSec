@@ -61,11 +61,15 @@ public:
         }
     }
 
+    bool SimpleSecurityCheck(size_t s, size_t o) {
+       return IsHistoryEmpty(s) || !HasConflict(s, o) || SameFirm(s, o);
+    }
+
     bool Read(size_t s, size_t o) {
         if (accessMatrix[s][o]) {
             return true;
         }
-        if (IsHistoryEmpty(s) || !HasConflict(s, o) || SameFirm(s, o)) {
+        if (SimpleSecurityCheck(s, o)) {
             accessMatrix[s][o] = true;
             return true;
         } 
@@ -73,7 +77,16 @@ public:
     }
 
     bool Write(size_t s, size_t o) {
-        return Read(s, o);
+        if (SimpleSecurityCheck(s, o)) {
+            for (size_t i = 0; i != objects; ++i) {
+                if (accessMatrix[s][i] && GetFirm(i) != GetFirm(o)) {
+                    return false;
+                }
+            }
+            accessMatrix[s][o] = true;
+            return true;
+        }
+        return false;
     }
 
     void AddObject(size_t o, char f) {
@@ -402,21 +415,23 @@ private:
 public:
     WallBuilder(std::istream& in_, std::ostream& out_) : in(in_), out(out_) {}
 
-    ChineseWall BuildWall() {
-        size_t n, m, f;
-        out << "Enter the number of subjects: ";
-        in >> n;
-        out << "Enter the number of objects: ";
-        in >> m;
-        out << "Enter the number of firms: ";
-        in >> f;
-        ChineseWall wall(n, m, f);
-        SetPortfolios(wall);
-        SetConflicts(wall);
-        out << "The system was successfully initialised!" << '\n';
-        return wall;
-    }; 
+    ChineseWall BuildWall(); 
 };
+
+ChineseWall WallBuilder::BuildWall() {
+    size_t n, m, f;
+    out << "Enter the number of subjects: ";
+    in >> n;
+    out << "Enter the number of objects: ";
+    in >> m;
+    out << "Enter the number of firms: ";
+    in >> f;
+    ChineseWall wall(n, m, f);
+    SetPortfolios(wall);
+    SetConflicts(wall);
+    out << "The system was successfully initialised!" << '\n';
+    return wall;
+}
 
 
 int main() {    
